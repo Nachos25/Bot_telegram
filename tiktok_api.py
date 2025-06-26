@@ -32,43 +32,70 @@ class TikTokAPI:
         """Получает информацию о пользователе"""
         try:
             url = Config.TIKTOK_USER_INFO_URL
-            params = {"username": username}
-            
+            params = {"uniqueId": username}
+            logger.info(f"[TikTokAPI] get_user_info: URL={url}, headers={self.headers}, params={params}")
             response = requests.get(url, headers=self.headers, params=params)
+            logger.info(f"[TikTokAPI] get_user_info: status={response.status_code}, text={response.text}")
             response.raise_for_status()
             
             data = response.json()
-            if data.get('success'):
-                return data.get('data')
+            if (data.get('statusCode', data.get('status_code', 1)) == 0 and 'userInfo' in data):
+                return data['userInfo']
             else:
-                logger.error(f"API error for user {username}: {data.get('message')}")
+                logger.error(f"API error for user {username}: {data}")
                 return None
                 
         except Exception as e:
             logger.error(f"Error getting user info for {username}: {str(e)}")
             return None
     
-    def get_user_followers(self, username: str, max_count: int = 50) -> List[Dict]:
-        """Получает список фолловеров пользователя"""
+    def get_user_followers(self, sec_uid: str, max_count: int = 50, min_cursor: int = 0) -> List[Dict]:
+        """Получает список фолловеров пользователя по secUid"""
         try:
-            url = Config.TIKTOK_USER_FOLLOWERS_URL
+            url = f"https://{Config.RAPIDAPI_HOST}/api/user/followers"
             params = {
-                "username": username,
-                "count": min(max_count, Config.MAX_FOLLOWERS_PER_SEARCH)
+                "secUid": sec_uid,
+                "count": min(max_count, Config.MAX_FOLLOWERS_PER_SEARCH),
+                "minCursor": str(min_cursor)
             }
-            
+            logger.info(
+                f"[TikTokAPI] get_user_followers: URL={url}, headers={self.headers}, params={params}"
+            )
             response = requests.get(url, headers=self.headers, params=params)
+            logger.info(
+                f"[TikTokAPI] get_user_followers: status={response.status_code}, "
+                f"text={response.text}"
+            )
             response.raise_for_status()
-            
             data = response.json()
-            if data.get('success'):
-                return data.get('data', {}).get('followers', [])
+            print('DEBUG followers API response:', data)
+            logger.info(f'DEBUG followers API response: {data}')
+            # В зависимости от структуры ответа API
+            if data.get('statusCode', data.get('status_code', 1)) == 0:
+                if 'userList' in data:
+                    return data['userList']
+                if 'followers' in data:
+                    return data['followers']
+                elif data.get('data') and 'followers' in data['data']:
+                    return data['data']['followers']
+                elif data.get('data') and isinstance(data['data'], list):
+                    return data['data']
+                elif data.get('data') and 'users' in data['data']:
+                    return data['data']['users']
+                else:
+                    logger.error(
+                        f"Не удалось найти список фолловеров в ответе: {data}"
+                    )
+                    return []
             else:
-                logger.error(f"API error getting followers for {username}: {data.get('message')}")
+                logger.error(
+                    f"API error getting followers for secUid {sec_uid}: {data}"
+                )
                 return []
-                
         except Exception as e:
-            logger.error(f"Error getting followers for {username}: {str(e)}")
+            logger.error(
+                f"Error getting followers for secUid {sec_uid}: {str(e)}"
+            )
             return []
     
     def get_user_videos(self, username: str, count: int = 10) -> List[Dict]:

@@ -67,12 +67,21 @@ class TikTokAnalyzer:
                 'error': f'Не удалось получить информацию об аккаунте {username}'
             }
         
+        sec_uid = user_info.get('user', {}).get('secUid') or user_info.get('secUid')
+        if not sec_uid:
+            return {
+                'success': False,
+                'error': (
+                    f'Не удалось получить secUid для аккаунта {username}'
+                )
+            }
+        
         # Получаем список фолловеров
         if progress_callback:
             await progress_callback("👥 Получаем список фолловеров...")
         
         followers = self.api.get_user_followers(
-            username, 
+            sec_uid,
             Config.MAX_FOLLOWERS_PER_SEARCH
         )
         
@@ -90,7 +99,7 @@ class TikTokAnalyzer:
         micro_influencers_found = 0
         
         for i, follower in enumerate(followers):
-            follower_username = follower.get('uniqueId')
+            follower_username = follower.get('user', {}).get('uniqueId')
             if not follower_username:
                 continue
             
